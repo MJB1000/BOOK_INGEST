@@ -1,0 +1,144 @@
+name: Discover Operators portal transcripts
+
+on:
+  push:
+    paths:
+      - '.github/workflows/discover-operators-portal-transcripts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests beautifulsoup4
+      - name: Discover and fetch portal transcripts
+        run: |
+          cat > /tmp/discover_portal.py <<'PY'
+          import html as html_lib
+          import json
+          import re
+          import shutil
+          import time
+          from pathlib import Path
+
+          import requests
+
+          OUT = Path('operators_transcripts_20260715')
+          DISCOVERED = OUT / '_portal_discovered'
+          OUT.mkdir(parents=True, exist_ok=True)
+          DISCOVERED.mkdir(parents=True, exist_ok=True)
+
+          expected = [
+              'The Performance Creative Director Hire: Operator vs. Ideator',
+              'Big-Swing vs. Incremental: Our Ecommerce CRO Testing Framework',
+              'The Right Way to A/B Test Landing Pages on Meta Ads for Ecommerce',
+              'How to 2x Your A/B Testing Output Without More Budget',
+              'The DTC Content Creation Process That Wins on Paid Social',
+              'How AI Is Reshaping Ecommerce Growth Teams: HexClad & Jones Road',
+          ]
+
+          def norm(value):
+              return re.sub(r'[^a-z0-9]+', '', html_lib.unescape(value).lower())
+
+          def slug(value):
+              return re.sub(r'[^A-Za-z0-9]+', '-', html_lib.unescape(value)).strip('-')[:110]
+
+          session = requests.Session()
+          session.headers.update({'User-Agent': 'Mozilla/5.0 transcript archive fetch'})
+          library_urls = [
+              'https://portal.9operators.com/library?show=mkt_ops',
+              'https://portal.9operators.com/library',
+              'https://portal.9operators.com/',
+          ]
+          raw_parts = []
+          library_status = []
+          for url in library_urls:
+              try:
+                  response = session.get(url, timeout=60)
+                  library_status.append({'url': url, 'status': response.status_code, 'length': len(response.text)})
+                  raw_parts.append(response.text)
+              except Exception as exc:
+                  library_status.append({'url': url, 'error': repr(exc)})
+          raw = '\n'.join(raw_parts)
+          (DISCOVERED / '_library_raw.html').write_text(raw, encoding='utf-8')
+
+          patterns = [
+              r'/episodes/([a-z0-9]{20,40})',
+              r'\\/episodes\\/([a-z0-9]{20,40})',
+              r'episodes%2F([a-z0-9]{20,40})',
+          ]
+          ids = []
+          for pattern in patterns:
+              for match in re.findall(pattern, raw, flags=re.I):
+                  match = match.lower()
+                  if match not in ids:
+                      ids.append(match)
+
+          # Always include the four already known IDs as fallbacks.
+          for known in [
+              'cmqqy9xku000t04kv2yivk73o',
+              'cmr0psblp004m04jpkm6ghck5',
+              'cmqgy6yfg005y04l729qjvwzo',
+              'cmq6l8noi000g04jvlks2f65m',
+          ]:
+              if known not in ids:
+                  ids.append(known)
+
+          results = []
+          failures = []
+          for position, episode_id in enumerate(ids[:40], start=1):
+              portal_url = f'https://portal.9operators.com/episodes/{episode_id}'
+              reader_url = f'https://r.jina.ai/http://portal.9operators.com/episodes/{episode_id}'
+              try:
+                  response = session.get(reader_url, timeout=120)
+                  response.raise_for_status()
+                  text = response.text.strip()
+                  title_match = re.search(r'^#\s+(.+?)\s*$', text, flags=re.M)
+                  title = title_match.group(1).strip() if title_match else episode_id
+                  filename = f'{position:02d}_{episode_id}_{slug(title)}.md'
+                  path = DISCOVERED / filename
+                  path.write_text(text + '\n', encoding='utf-8')
+                  item = {'episode_id': episode_id, 'title': title, 'portal_url': portal_url, 'file': str(path)}
+                  results.append(item)
+
+                  title_norm = norm(title)
+                  for expected_position, expected_title in enumerate(expected, start=1):
+                      expected_norm = norm(expected_title)
+                      if title_norm == expected_norm or expected_norm in title_norm or title_norm in expected_norm:
+                          target = OUT / f'{expected_position:02d}_{slug(expected_title)}_portal.md'
+                          shutil.copyfile(path, target)
+                          item['matched_expected_position'] = expected_position
+                          item['archive_file'] = str(target)
+                          break
+              except Exception as exc:
+                  failures.append({'episode_id': episode_id, 'url': reader_url, 'error': repr(exc)})
+              time.sleep(0.6)
+
+          report = {
+              'library_status': library_status,
+              'discovered_episode_ids': ids,
+              'results': results,
+              'failures': failures,
+              'expected_titles': expected,
+              'matched_positions': sorted({r.get('matched_expected_position') for r in results if r.get('matched_expected_position')}),
+          }
+          (OUT / 'portal_discovery.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+          print(json.dumps(report, indent=2))
+          PY
+          python /tmp/discover_portal.py
+      - name: Commit portal transcripts
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add operators_transcripts_20260715
+          git diff --cached --quiet && exit 0
+          git commit -m 'Add discovered Operators portal transcripts'
+          git push
