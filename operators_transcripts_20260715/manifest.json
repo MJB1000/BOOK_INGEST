@@ -1,0 +1,90 @@
+{
+  "videos": [
+    {
+      "position": 1,
+      "title": "How HexClad Is Building a Product-Page AI Agent as a CRO Play",
+      "video_id": "QXd5NoEFY0o",
+      "url": "https://www.youtube.com/watch?v=QXd5NoEFY0o",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 2,
+      "title": "Big-Swing vs. Incremental: Our Ecommerce CRO Testing Framework",
+      "video_id": "auKUEvA_R8o",
+      "url": "https://www.youtube.com/watch?v=auKUEvA_R8o",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 3,
+      "title": "The Right Way to A/B Test Landing Pages on Meta Ads for Ecommerce",
+      "video_id": "Qj5d_YVNOC4",
+      "url": "https://www.youtube.com/watch?v=Qj5d_YVNOC4",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 4,
+      "title": "How to 2x Your A/B Testing Output Without More Budget",
+      "video_id": "cBbsDGG65RI",
+      "url": "https://www.youtube.com/watch?v=cBbsDGG65RI",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 5,
+      "title": "The DTC Content Creation Process That Wins on Paid Social",
+      "video_id": "Wh8RW4NA5_A",
+      "url": "https://www.youtube.com/watch?v=Wh8RW4NA5_A",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 6,
+      "title": "How AI Is Reshaping Ecommerce Growth Teams: HexClad & Jones Road",
+      "video_id": "lADnv3AtRvk",
+      "url": "https://www.youtube.com/watch?v=lADnv3AtRvk",
+      "error": "RequestBlocked()"
+    }
+  ],
+  "failures": [
+    {
+      "position": 1,
+      "title": "How HexClad Is Building a Product-Page AI Agent as a CRO Play",
+      "video_id": "QXd5NoEFY0o",
+      "url": "https://www.youtube.com/watch?v=QXd5NoEFY0o",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 2,
+      "title": "Big-Swing vs. Incremental: Our Ecommerce CRO Testing Framework",
+      "video_id": "auKUEvA_R8o",
+      "url": "https://www.youtube.com/watch?v=auKUEvA_R8o",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 3,
+      "title": "The Right Way to A/B Test Landing Pages on Meta Ads for Ecommerce",
+      "video_id": "Qj5d_YVNOC4",
+      "url": "https://www.youtube.com/watch?v=Qj5d_YVNOC4",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 4,
+      "title": "How to 2x Your A/B Testing Output Without More Budget",
+      "video_id": "cBbsDGG65RI",
+      "url": "https://www.youtube.com/watch?v=cBbsDGG65RI",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 5,
+      "title": "The DTC Content Creation Process That Wins on Paid Social",
+      "video_id": "Wh8RW4NA5_A",
+      "url": "https://www.youtube.com/watch?v=Wh8RW4NA5_A",
+      "error": "RequestBlocked()"
+    },
+    {
+      "position": 6,
+      "title": "How AI Is Reshaping Ecommerce Growth Teams: HexClad & Jones Road",
+      "video_id": "lADnv3AtRvk",
+      "url": "https://www.youtube.com/watch?v=lADnv3AtRvk",
+      "error": "RequestBlocked()"
+    }
+  ]
+}
