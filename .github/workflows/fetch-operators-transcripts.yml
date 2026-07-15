@@ -1,3 +1,4 @@
+# Triggered 2026-07-15
 name: Fetch Operators transcripts
 
 on:
@@ -36,7 +37,6 @@ jobs:
           from pathlib import Path
 
           import requests
-          from bs4 import BeautifulSoup
           from youtube_transcript_api import YouTubeTranscriptApi
 
           OUT = Path('operators_transcripts_20260715')
@@ -49,10 +49,7 @@ jobs:
               return value[:110] or 'untitled'
 
           def latest_videos():
-              cmd = [
-                  'yt-dlp', '--flat-playlist', '--playlist-end', '6',
-                  '--dump-single-json', CHANNEL,
-              ]
+              cmd = ['yt-dlp', '--flat-playlist', '--playlist-end', '6', '--dump-single-json', CHANNEL]
               raw = subprocess.check_output(cmd, text=True)
               data = json.loads(raw)
               entries = [e for e in data.get('entries', []) if e and e.get('id')][:6]
@@ -61,18 +58,14 @@ jobs:
               return entries
 
           def fetch_youtube_segments(video_id: str):
-              api = YouTubeTranscriptApi()
-              fetched = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
+              fetched = YouTubeTranscriptApi().fetch(video_id, languages=['en', 'en-US', 'en-GB'])
               return fetched.to_raw_data()
 
           def format_segments(title: str, video_id: str, segments):
               lines = [title, f'YouTube video ID: {video_id}', '']
               for segment in segments:
                   seconds = float(segment.get('start', 0))
-                  hours = int(seconds // 3600)
-                  minutes = int((seconds % 3600) // 60)
-                  secs = int(seconds % 60)
-                  stamp = f'{hours:02d}:{minutes:02d}:{secs:02d}'
+                  stamp = f'{int(seconds // 3600):02d}:{int((seconds % 3600) // 60):02d}:{int(seconds % 60):02d}'
                   text = html.unescape(str(segment.get('text', ''))).replace('\n', ' ').strip()
                   if text:
                       lines.append(f'[{stamp}] {text}')
@@ -81,22 +74,14 @@ jobs:
           entries = latest_videos()
           manifest = []
           failures = []
-
           for index, entry in enumerate(entries, start=1):
               video_id = entry['id']
               title = entry.get('title') or video_id
-              item = {
-                  'position': index,
-                  'title': title,
-                  'video_id': video_id,
-                  'url': f'https://www.youtube.com/watch?v={video_id}',
-              }
+              item = {'position': index, 'title': title, 'video_id': video_id, 'url': f'https://www.youtube.com/watch?v={video_id}'}
               try:
                   segments = fetch_youtube_segments(video_id)
                   filename = f'{index:02d}_{slugify(title)}_{video_id}.txt'
-                  (OUT / filename).write_text(
-                      format_segments(title, video_id, segments), encoding='utf-8'
-                  )
+                  (OUT / filename).write_text(format_segments(title, video_id, segments), encoding='utf-8')
                   item['transcript_file'] = filename
                   item['segment_count'] = len(segments)
               except Exception as exc:
@@ -105,7 +90,6 @@ jobs:
               manifest.append(item)
               time.sleep(1)
 
-          # Fetch the four known speaker-labelled portal transcripts as a second source.
           portal_pages = {
               'How to 2x Your A-B Testing Output Without More Budget': 'https://portal.9operators.com/episodes/cmqqy9xku000t04kv2yivk73o',
               'The Right Way to A-B Test Landing Pages on Meta Ads for Ecommerce': 'https://portal.9operators.com/episodes/cmr0psblp004m04jpkm6ghck5',
@@ -117,36 +101,20 @@ jobs:
                   response = requests.get('https://r.jina.ai/http://' + url.removeprefix('https://'), timeout=90)
                   response.raise_for_status()
                   text = response.text
-                  marker = 'Transcript'
-                  if marker in text:
-                      text = text[text.index(marker):]
-                  filename = f'portal_{slugify(title)}.md'
-                  (OUT / filename).write_text(text.strip() + '\n', encoding='utf-8')
+                  if 'Transcript' in text:
+                      text = text[text.index('Transcript'):]
+                  (OUT / f'portal_{slugify(title)}.md').write_text(text.strip() + '\n', encoding='utf-8')
               except Exception as exc:
                   failures.append({'portal_url': url, 'error': repr(exc)})
 
-          (OUT / 'manifest.json').write_text(
-              json.dumps({'videos': manifest, 'failures': failures}, indent=2),
-              encoding='utf-8',
-          )
+          (OUT / 'manifest.json').write_text(json.dumps({'videos': manifest, 'failures': failures}, indent=2), encoding='utf-8')
           (OUT / 'README.md').write_text(
               '# Marketing Operators transcript archive\n\n'
-              'Generated from the six most recent videos visible on 15 July 2026. '
-              'YouTube caption transcripts include timestamps. Four episodes also include '
-              'speaker-labelled portal transcripts where the portal URLs were already known.\n\n'
-              + '\n'.join(
-                  f"{item['position']}. {item['title']} (`{item['video_id']}`)"
-                  for item in manifest
-              )
-              + '\n',
+              'Generated from the six most recent videos visible on 15 July 2026. YouTube caption transcripts include timestamps. Four episodes also include speaker-labelled portal transcripts where the portal URLs were already known.\n\n'
+              + '\n'.join(f"{item['position']}. {item['title']} (`{item['video_id']}`)" for item in manifest) + '\n',
               encoding='utf-8',
           )
-
-          if failures:
-              print('Completed with failures:')
-              print(json.dumps(failures, indent=2))
-          else:
-              print('All transcripts fetched successfully.')
+          print(json.dumps({'videos': manifest, 'failures': failures}, indent=2))
           PY
           python /tmp/fetch_operators.py
 
