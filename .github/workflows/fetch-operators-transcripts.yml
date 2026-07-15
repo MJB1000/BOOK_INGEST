@@ -1,0 +1,160 @@
+name: Fetch Operators transcripts
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fetch-operators-transcripts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install transcript tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install yt-dlp youtube-transcript-api requests beautifulsoup4
+
+      - name: Fetch latest six Marketing Operators transcripts
+        run: |
+          cat > /tmp/fetch_operators.py <<'PY'
+          import html
+          import json
+          import re
+          import subprocess
+          import time
+          from pathlib import Path
+
+          import requests
+          from bs4 import BeautifulSoup
+          from youtube_transcript_api import YouTubeTranscriptApi
+
+          OUT = Path('operators_transcripts_20260715')
+          OUT.mkdir(parents=True, exist_ok=True)
+          CHANNEL = 'https://www.youtube.com/@MarketingOperators/videos'
+
+          def slugify(value: str) -> str:
+              value = html.unescape(value)
+              value = re.sub(r'[^A-Za-z0-9]+', '-', value).strip('-')
+              return value[:110] or 'untitled'
+
+          def latest_videos():
+              cmd = [
+                  'yt-dlp', '--flat-playlist', '--playlist-end', '6',
+                  '--dump-single-json', CHANNEL,
+              ]
+              raw = subprocess.check_output(cmd, text=True)
+              data = json.loads(raw)
+              entries = [e for e in data.get('entries', []) if e and e.get('id')][:6]
+              if len(entries) < 6:
+                  raise RuntimeError(f'Only found {len(entries)} videos')
+              return entries
+
+          def fetch_youtube_segments(video_id: str):
+              api = YouTubeTranscriptApi()
+              fetched = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
+              return fetched.to_raw_data()
+
+          def format_segments(title: str, video_id: str, segments):
+              lines = [title, f'YouTube video ID: {video_id}', '']
+              for segment in segments:
+                  seconds = float(segment.get('start', 0))
+                  hours = int(seconds // 3600)
+                  minutes = int((seconds % 3600) // 60)
+                  secs = int(seconds % 60)
+                  stamp = f'{hours:02d}:{minutes:02d}:{secs:02d}'
+                  text = html.unescape(str(segment.get('text', ''))).replace('\n', ' ').strip()
+                  if text:
+                      lines.append(f'[{stamp}] {text}')
+              return '\n'.join(lines).strip() + '\n'
+
+          entries = latest_videos()
+          manifest = []
+          failures = []
+
+          for index, entry in enumerate(entries, start=1):
+              video_id = entry['id']
+              title = entry.get('title') or video_id
+              item = {
+                  'position': index,
+                  'title': title,
+                  'video_id': video_id,
+                  'url': f'https://www.youtube.com/watch?v={video_id}',
+              }
+              try:
+                  segments = fetch_youtube_segments(video_id)
+                  filename = f'{index:02d}_{slugify(title)}_{video_id}.txt'
+                  (OUT / filename).write_text(
+                      format_segments(title, video_id, segments), encoding='utf-8'
+                  )
+                  item['transcript_file'] = filename
+                  item['segment_count'] = len(segments)
+              except Exception as exc:
+                  item['error'] = repr(exc)
+                  failures.append(item)
+              manifest.append(item)
+              time.sleep(1)
+
+          # Fetch the four known speaker-labelled portal transcripts as a second source.
+          portal_pages = {
+              'How to 2x Your A-B Testing Output Without More Budget': 'https://portal.9operators.com/episodes/cmqqy9xku000t04kv2yivk73o',
+              'The Right Way to A-B Test Landing Pages on Meta Ads for Ecommerce': 'https://portal.9operators.com/episodes/cmr0psblp004m04jpkm6ghck5',
+              'The DTC Content Creation Process That Wins on Paid Social': 'https://portal.9operators.com/episodes/cmqgy6yfg005y04l729qjvwzo',
+              'How AI Is Reshaping Ecommerce Growth Teams HexClad and Jones Road': 'https://portal.9operators.com/episodes/cmq6l8noi000g04jvlks2f65m',
+          }
+          for title, url in portal_pages.items():
+              try:
+                  response = requests.get('https://r.jina.ai/http://' + url.removeprefix('https://'), timeout=90)
+                  response.raise_for_status()
+                  text = response.text
+                  marker = 'Transcript'
+                  if marker in text:
+                      text = text[text.index(marker):]
+                  filename = f'portal_{slugify(title)}.md'
+                  (OUT / filename).write_text(text.strip() + '\n', encoding='utf-8')
+              except Exception as exc:
+                  failures.append({'portal_url': url, 'error': repr(exc)})
+
+          (OUT / 'manifest.json').write_text(
+              json.dumps({'videos': manifest, 'failures': failures}, indent=2),
+              encoding='utf-8',
+          )
+          (OUT / 'README.md').write_text(
+              '# Marketing Operators transcript archive\n\n'
+              'Generated from the six most recent videos visible on 15 July 2026. '
+              'YouTube caption transcripts include timestamps. Four episodes also include '
+              'speaker-labelled portal transcripts where the portal URLs were already known.\n\n'
+              + '\n'.join(
+                  f"{item['position']}. {item['title']} (`{item['video_id']}`)"
+                  for item in manifest
+              )
+              + '\n',
+              encoding='utf-8',
+          )
+
+          if failures:
+              print('Completed with failures:')
+              print(json.dumps(failures, indent=2))
+          else:
+              print('All transcripts fetched successfully.')
+          PY
+          python /tmp/fetch_operators.py
+
+      - name: Commit transcript archive
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add operators_transcripts_20260715
+          git diff --cached --quiet && exit 0
+          git commit -m 'Add Marketing Operators transcript archive'
+          git push
