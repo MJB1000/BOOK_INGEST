@@ -1,0 +1,21 @@
+name: Export transcript artifact
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify archive
+        run: unzip -t operators_transcripts_20260715/Marketing_Operators_Transcripts_20260715.zip
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: Marketing_Operators_Transcripts_20260715
+          path: operators_transcripts_20260715/Marketing_Operators_Transcripts_20260715.zip
+          if-no-files-found: error
+          retention-days: 1
